@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 ROOT = Path(__file__).resolve().parent
 REFERENCE_WIDTH = 2560
@@ -14,6 +15,17 @@ REGIONS = {
 }
 
 
+def read_image(path, flags):
+    """Decode bytes read by Python so paths work with Windows Unicode names."""
+    try:
+        data = Path(path).read_bytes()
+        if not data:
+            return None
+        return cv2.imdecode(np.frombuffer(data, dtype=np.uint8), flags)
+    except (OSError, cv2.error):
+        return None
+
+
 def analyze(image):
     height, width = image.shape[:2]
     if width < 1280 or not 1.7 <= width / height <= 1.85:
@@ -22,7 +34,7 @@ def analyze(image):
     gray = cv2.cvtColor(scaled, cv2.COLOR_BGR2GRAY)
     results = {}
     for name, (x1, y1, x2, y2, template_name) in REGIONS.items():
-        template = cv2.imread(str(ROOT / "templates" / template_name), cv2.IMREAD_GRAYSCALE)
+        template = read_image(ROOT / "templates" / template_name, cv2.IMREAD_GRAYSCALE)
         if template is None:
             raise ValueError(f"Missing template: {template_name}")
         area = gray[y1:y2, x1:x2]
@@ -35,7 +47,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image", type=Path)
     args = parser.parse_args()
-    image = cv2.imread(str(args.image))
+    image = read_image(args.image, cv2.IMREAD_COLOR)
     if image is None:
         parser.error(f"Cannot read image: {args.image}")
     try:
